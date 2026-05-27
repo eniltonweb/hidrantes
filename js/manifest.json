@@ -1,0 +1,25 @@
+{
+  "name": "Sistema de Hidrantes e Mangueiras",
+  "short_name": "Hidrantes",
+  "start_url": "/index.php",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#002f6c",
+  "icons": [
+    {
+      "src": "/img/michelin_logo.png",
+      "sizes": "1920x1080",
+      "type": "image/png"
+    },
+    {
+      "src": "/img/michelin_logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/img/michelin_logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
