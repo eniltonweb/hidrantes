@@ -15,9 +15,37 @@ $conexoesFiltro = $_GET['conexoes'] ?? '';
 $testeHidroFiltro = $_GET['teste_hidrostatico_proximo'] ?? '';
 $expiraEmFiltro = $_GET['expira_em_dias'] ?? '';
 
-// Consulta base para recuperar todas as inspeções de mangueiras
-$query = "SELECT codigo, aduchada, conexoes, teste_hidrostatico_proximo, expira_em_dias, data_manutencao, vistoriador FROM mangueiras WHERE 1=1";
-
+// Consulta base reconstruída usando CTE ou Subquery para habilitar filtragem pelos alias
+$query = "
+SELECT * FROM (
+    SELECT 
+        CONCAT(c.codigo_caixa, ' (M', m.id, ')') as codigo,
+        CASE 
+            WHEN h.aduchada_ok = 1 THEN 'Ok' 
+            WHEN h.aduchada_ok = 0 THEN 'Não Ok' 
+            ELSE 'Sem Inspeção' 
+        END as aduchada,
+        CASE 
+            WHEN h.conexoes_ok = 1 THEN 'Ok' 
+            WHEN h.conexoes_ok = 0 THEN 'Não Ok' 
+            ELSE 'Sem Inspeção' 
+        END as conexoes,
+        h.proximo_teste as teste_hidrostatico_proximo,
+        DATEDIFF(h.proximo_teste, CURDATE()) as expira_em_dias,
+        h.data_inspecao as data_manutencao,
+        h.usuario as vistoriador
+    FROM mangueiras_novo m
+    JOIN caixas_hidrante c ON m.caixa_id = c.id
+    LEFT JOIN (
+        SELECT h1.* FROM historico_inspecoes_mangueira h1
+        INNER JOIN (
+            SELECT mangueira_id, MAX(id) as max_id 
+            FROM historico_inspecoes_mangueira 
+            GROUP BY mangueira_id
+        ) h2 ON h1.id = h2.max_id
+    ) h ON m.id = h.mangueira_id
+) view_mangueiras WHERE 1=1
+";
 $params = [];
 $types = "";
 

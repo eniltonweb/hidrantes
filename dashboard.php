@@ -8,9 +8,29 @@ $dataTipo = [];
 $dataExpiracao = [];
 
 // --- CONSULTAS DE MANGUEIRAS ---
+// Subquery para pegar o id_historico mais recente de cada mangueira
+$latest_mangueira_hist = "
+    (SELECT h1.* FROM historico_inspecoes_mangueira h1
+    INNER JOIN (
+        SELECT mangueira_id, MAX(id) as max_id
+        FROM historico_inspecoes_mangueira
+        GROUP BY mangueira_id
+    ) h2 ON h1.id = h2.max_id)
+";
 
 // Query de Aduchada
-$queryAduchada = "SELECT aduchada, COUNT(DISTINCT codigo) as total FROM mangueiras GROUP BY aduchada";
+$queryAduchada = "
+    SELECT 
+        CASE 
+            WHEN h.aduchada_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.aduchada_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as aduchada, 
+        COUNT(DISTINCT m.id) as total
+    FROM mangueiras_novo m
+    LEFT JOIN $latest_mangueira_hist h ON m.id = h.mangueira_id
+    GROUP BY aduchada
+";
 $resultAduchada = $conn->query($queryAduchada);
 if ($resultAduchada) {
     while ($row = $resultAduchada->fetch_assoc()) {
@@ -18,8 +38,19 @@ if ($resultAduchada) {
     }
 }
 
-// Query de Conexões
-$queryConexoes = "SELECT conexoes, COUNT(DISTINCT codigo) as total FROM mangueiras GROUP BY conexoes";
+// Query de Conexões (Mangueiras)
+$queryConexoes = "
+    SELECT 
+        CASE 
+            WHEN h.conexoes_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.conexoes_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as conexoes, 
+        COUNT(DISTINCT m.id) as total
+    FROM mangueiras_novo m
+    LEFT JOIN $latest_mangueira_hist h ON m.id = h.mangueira_id
+    GROUP BY conexoes
+";
 $resultConexoes = $conn->query($queryConexoes);
 if ($resultConexoes) {
     while ($row = $resultConexoes->fetch_assoc()) {
@@ -27,8 +58,8 @@ if ($resultConexoes) {
     }
 }
 
-// Query por Tipo
-$queryTipo = "SELECT tipo, COUNT(DISTINCT codigo) as total FROM mangueiras GROUP BY tipo";
+// Query por Tipo (Físico - Direto na tabela mangueiras_novo)
+$queryTipo = "SELECT tipo, COUNT(DISTINCT id) as total FROM mangueiras_novo GROUP BY tipo";
 $resultTipo = $conn->query($queryTipo);
 if ($resultTipo) {
     while ($row = $resultTipo->fetch_assoc()) {
@@ -37,7 +68,16 @@ if ($resultTipo) {
 }
 
 // Query de Expiração
-$queryExpiracao = "SELECT data_manutencao, MIN(expira_em_dias) as expira_em_dias FROM mangueiras WHERE data_manutencao IS NOT NULL GROUP BY data_manutencao ORDER BY data_manutencao";
+$queryExpiracao = "
+    SELECT 
+        h.data_inspecao as data_manutencao, 
+        MIN(DATEDIFF(h.proximo_teste, CURDATE())) as expira_em_dias 
+    FROM mangueiras_novo m
+    JOIN $latest_mangueira_hist h ON m.id = h.mangueira_id
+    WHERE h.proximo_teste IS NOT NULL
+    GROUP BY h.data_inspecao 
+    ORDER BY h.data_inspecao
+";
 $resultExpiracao = $conn->query($queryExpiracao);
 if ($resultExpiracao) {
     while ($row = $resultExpiracao->fetch_assoc()) {
@@ -46,51 +86,81 @@ if ($resultExpiracao) {
 }
 
 // --- CONSULTAS DE HIDRANTES (NBR & CBMERJ) ---
+$latest_hidrante_hist = "
+    (SELECT h1.* FROM historico_inspecoes_hidrante h1
+    INNER JOIN (
+        SELECT caixa_id, MAX(id) as max_id
+        FROM historico_inspecoes_hidrante
+        GROUP BY caixa_id
+    ) h2 ON h1.id = h2.max_id)
+";
 
 $dataHidranteEsguincho = [];
-$queryH_Esguincho = "SELECT esguincho, COUNT(DISTINCT codigo) as total FROM hidrantes WHERE esguincho IS NOT NULL AND esguincho != '' GROUP BY esguincho";
+$queryH_Esguincho = "
+    SELECT 
+        CASE 
+            WHEN h.esguincho_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.esguincho_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as esguincho, 
+        COUNT(DISTINCT c.id) as total
+    FROM caixas_hidrante c
+    LEFT JOIN $latest_hidrante_hist h ON c.id = h.caixa_id
+    GROUP BY esguincho
+";
 $result = $conn->query($queryH_Esguincho);
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $dataHidranteEsguincho[] = $row;
-    }
-}
+if ($result) { while ($row = $result->fetch_assoc()) { $dataHidranteEsguincho[] = $row; } }
 
 $dataHidranteChave = [];
-$queryH_Chave = "SELECT chave_storz, COUNT(DISTINCT codigo) as total FROM hidrantes WHERE chave_storz IS NOT NULL AND chave_storz != '' GROUP BY chave_storz";
+$queryH_Chave = "
+    SELECT 
+        CASE 
+            WHEN h.chave_storz_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.chave_storz_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as chave_storz, 
+        COUNT(DISTINCT c.id) as total
+    FROM caixas_hidrante c
+    LEFT JOIN $latest_hidrante_hist h ON c.id = h.caixa_id
+    GROUP BY chave_storz
+";
 $result = $conn->query($queryH_Chave);
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $dataHidranteChave[] = $row;
-    }
-}
+if ($result) { while ($row = $result->fetch_assoc()) { $dataHidranteChave[] = $row; } }
 
 $dataHidrantePiso = [];
-$queryH_Piso = "SELECT pintura, COUNT(DISTINCT codigo) as total FROM hidrantes WHERE pintura IS NOT NULL AND pintura != '' GROUP BY pintura";
+$queryH_Piso = "
+    SELECT 
+        CASE 
+            WHEN h.pintura_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.pintura_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as pintura, 
+        COUNT(DISTINCT c.id) as total
+    FROM caixas_hidrante c
+    LEFT JOIN $latest_hidrante_hist h ON c.id = h.caixa_id
+    GROUP BY pintura
+";
 $result = $conn->query($queryH_Piso);
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $dataHidrantePiso[] = $row;
-    }
-}
+if ($result) { while ($row = $result->fetch_assoc()) { $dataHidrantePiso[] = $row; } }
 
 $dataHidranteAbrigo = [];
-$queryH_Abrigo = "SELECT abrigo, COUNT(DISTINCT codigo) as total FROM hidrantes WHERE abrigo IS NOT NULL AND abrigo != '' GROUP BY abrigo";
+$queryH_Abrigo = "
+    SELECT 
+        CASE 
+            WHEN h.abrigo_ok IS NULL THEN 'Sem Inspeção'
+            WHEN h.abrigo_ok = 1 THEN 'Ok'
+            ELSE 'Não Ok' 
+        END as abrigo, 
+        COUNT(DISTINCT c.id) as total
+    FROM caixas_hidrante c
+    LEFT JOIN $latest_hidrante_hist h ON c.id = h.caixa_id
+    GROUP BY abrigo
+";
 $result = $conn->query($queryH_Abrigo);
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $dataHidranteAbrigo[] = $row;
-    }
-}
+if ($result) { while ($row = $result->fetch_assoc()) { $dataHidranteAbrigo[] = $row; } }
 
-$dataHidranteConexoes = [];
-$queryH_Conexoes = "SELECT conexoes, COUNT(DISTINCT codigo) as total FROM hidrantes WHERE conexoes IS NOT NULL AND conexoes != '' GROUP BY conexoes";
-$result = $conn->query($queryH_Conexoes);
-if ($result) {
-    while ($row = $result->fetch_assoc()) {
-        $dataHidranteConexoes[] = $row;
-    }
-}
+// Coluna conexoes foi descontinuada na nova tabela historico_inspecoes_hidrante.
+$dataHidranteConexoes = [['conexoes' => 'Descontinuado (Verificar Mangueiras)', 'total' => 1]];
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">

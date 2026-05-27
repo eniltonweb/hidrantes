@@ -17,12 +17,45 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $headers = [];
 
     if ($tipo_relatorio == 'inspecoes_mangueiras') {
-        $headers = ['Código', 'Aduchada', 'Conexões', 'Próximo Teste Hidrostático', 'Expira em (Dias)', 'Data da Inspeção', 'Vistoriador'];
-        // CORREÇÃO: A tabela correta é 'mangueiras'
-        $query = "SELECT codigo, aduchada, conexoes, teste_hidrostatico_proximo, expira_em_dias, data_manutencao, vistoriador FROM mangueiras";
+        $headers = ['Código da Mangueira', 'Aduchada', 'Conexões', 'Próximo Teste Hidrostático', 'Expira em (Dias)', 'Data da Inspeção', 'Vistoriador'];
+        $query = "
+            SELECT 
+                CONCAT(c.codigo_caixa, ' (M', m.id, ')') as codigo,
+                CASE WHEN h.aduchada_ok = 1 THEN 'Ok' WHEN h.aduchada_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as aduchada,
+                CASE WHEN h.conexoes_ok = 1 THEN 'Ok' WHEN h.conexoes_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as conexoes,
+                h.proximo_teste as teste_hidrostatico_proximo,
+                DATEDIFF(h.proximo_teste, CURDATE()) as expira_em_dias,
+                h.data_inspecao as data_manutencao,
+                h.usuario as vistoriador
+            FROM mangueiras_novo m
+            JOIN caixas_hidrante c ON m.caixa_id = c.id
+            LEFT JOIN (
+                SELECT h1.* FROM historico_inspecoes_mangueira h1
+                INNER JOIN (
+                    SELECT mangueira_id, MAX(id) as max_id FROM historico_inspecoes_mangueira GROUP BY mangueira_id
+                ) h2 ON h1.id = h2.max_id
+            ) h ON m.id = h.mangueira_id
+        ";
     } elseif ($tipo_relatorio == 'inspecoes_hidrantes') {
         $headers = ['Código', 'Local', 'Esguincho', 'Chave Storz', 'Pintura', 'Abrigo', 'Data da Inspeção', 'Vistoriador'];
-        $query = "SELECT codigo, local, esguincho, chave_storz, pintura, abrigo, data_manutencao, vistoriador FROM hidrantes";
+        $query = "
+            SELECT 
+                c.codigo_caixa as codigo, 
+                c.local, 
+                CASE WHEN h.esguincho_ok = 1 THEN 'Ok' WHEN h.esguincho_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as esguincho,
+                CASE WHEN h.chave_storz_ok = 1 THEN 'Ok' WHEN h.chave_storz_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as chave_storz,
+                CASE WHEN h.pintura_ok = 1 THEN 'Ok' WHEN h.pintura_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as pintura,
+                CASE WHEN h.abrigo_ok = 1 THEN 'Ok' WHEN h.abrigo_ok = 0 THEN 'Não Ok' ELSE 'Sem Inspeção' END as abrigo,
+                h.data_inspecao as data_manutencao, 
+                h.usuario as vistoriador
+            FROM caixas_hidrante c
+            LEFT JOIN (
+                SELECT h1.* FROM historico_inspecoes_hidrante h1
+                INNER JOIN (
+                    SELECT caixa_id, MAX(id) as max_id FROM historico_inspecoes_hidrante GROUP BY caixa_id
+                ) h2 ON h1.id = h2.max_id
+            ) h ON c.id = h.caixa_id
+        ";
     } else {
         die('Tipo de relatório inválido.');
     }

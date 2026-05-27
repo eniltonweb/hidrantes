@@ -44,40 +44,21 @@ foreach ($inspecoes as $inspecao) {
     }
 
     if ($tipo_ativo === 'hidrante') {
-        $esguincho = $inspecao['esguincho'] ?? 'Ok';
-        $chave_storz = $inspecao['chave_storz'] ?? 'Ok';
-        $pintura = $inspecao['pintura'] ?? 'Ok';
-        $abrigo = $inspecao['abrigo'] ?? 'Ok';
-        $conexoes = $inspecao['conexoes'] ?? 'Ok';
+        $esguincho_ok = ($inspecao['esguincho'] ?? '') == 'Ok' ? 1 : 0;
+        $chave_storz_ok = ($inspecao['chave_storz'] ?? '') == 'Ok' ? 1 : 0;
+        $pintura_ok = ($inspecao['pintura'] ?? '') == 'Ok' ? 1 : 0;
+        $abrigo_ok = ($inspecao['abrigo'] ?? '') == 'Ok' ? 1 : 0;
 
-        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_hidrante (id_hidrante, vistoriador, esguincho, chave_storz, pintura, abrigo, conexoes, comentarios, data_inspecao) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt_hist->bind_param("issssssss", $id_ativo, $vistoriador, $esguincho, $chave_storz, $pintura, $abrigo, $conexoes, $comentarios, $data_manutencao);
-        $stmt_hist->execute();
-        $stmt_hist->close();
-
-        $stmt = $conn->prepare("UPDATE hidrantes SET esguincho = ?, chave_storz = ?, pintura = ?, abrigo = ?, conexoes = ?, vistoriador = ?, comentarios = ?, data_manutencao = ? WHERE id_hidrante = ?");
-        $stmt->bind_param("ssssssssi", $esguincho, $chave_storz, $pintura, $abrigo, $conexoes, $vistoriador, $comentarios, $data_manutencao, $id_ativo);
+        $stmt = $conn->prepare("INSERT INTO historico_inspecoes_hidrante (caixa_id, usuario, data_inspecao, esguincho_ok, chave_storz_ok, pintura_ok, abrigo_ok, comentarios) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("issiiiis", $id_ativo, $vistoriador, $data_manutencao, $esguincho_ok, $chave_storz_ok, $pintura_ok, $abrigo_ok, $comentarios);
     
     } elseif ($tipo_ativo === 'mangueira') {
-        $aduchada = $inspecao['aduchada'] ?? 'Ok';
-        $conexoes = $inspecao['conexoes'] ?? 'Ok';
-        $teste_hidrostatico_proximo = $inspecao['teste_hidrostatico_proximo'] ?? null;
+        $aduchada_ok = ($inspecao['aduchada'] ?? '') == 'Ok' ? 1 : 0;
+        $conexoes_ok = ($inspecao['conexoes'] ?? '') == 'Ok' ? 1 : 0;
+        $proximo_teste = $inspecao['teste_hidrostatico_proximo'] ?? null;
 
-        $expira_em_dias = 0;
-        if (!empty($teste_hidrostatico_proximo)) {
-            $hoje = new DateTime();
-            $proximo_teste = new DateTime($teste_hidrostatico_proximo);
-            $diferenca = $hoje->diff($proximo_teste);
-            $expira_em_dias = $diferenca->invert ? 0 : $diferenca->days;
-        }
-
-        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_mangueira (id_mangueira, vistoriador, aduchada, conexoes, teste_hidrostatico_proximo, expira_em_dias, comentarios, data_inspecao) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt_hist->bind_param("issssiss", $id_ativo, $vistoriador, $aduchada, $conexoes, $teste_hidrostatico_proximo, $expira_em_dias, $comentarios, $data_manutencao);
-        $stmt_hist->execute();
-        $stmt_hist->close();
-
-        $stmt = $conn->prepare("UPDATE mangueiras SET aduchada = ?, conexoes = ?, teste_hidrostatico_proximo = ?, expira_em_dias = ?, comentarios = ?, vistoriador = ?, data_manutencao = ? WHERE id_mangueira = ?");
-        $stmt->bind_param("sssisssi", $aduchada, $conexoes, $teste_hidrostatico_proximo, $expira_em_dias, $comentarios, $vistoriador, $data_manutencao, $id_ativo);
+        $stmt = $conn->prepare("INSERT INTO historico_inspecoes_mangueira (mangueira_id, usuario, data_inspecao, aduchada_ok, conexoes_ok, proximo_teste, comentarios) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("issiiis", $id_ativo, $vistoriador, $data_manutencao, $aduchada_ok, $conexoes_ok, $proximo_teste, $comentarios);
     } else {
         $erros++;
         continue;

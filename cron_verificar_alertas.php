@@ -6,7 +6,20 @@ echo "Iniciando verificação de alertas...\n";
 
 // --- Alerta 1: Mangueiras próximas do vencimento do teste hidrostático ---
 $dias_para_alerta = 30;
-$query_mangueiras = "SELECT codigo, expira_em_dias FROM mangueiras WHERE expira_em_dias <= ?";
+$query_mangueiras = "
+    SELECT 
+        CONCAT(c.codigo_caixa, ' (M', m.id, ')') as codigo, 
+        DATEDIFF(h.proximo_teste, CURDATE()) as expira_em_dias 
+    FROM mangueiras_novo m
+    JOIN caixas_hidrante c ON m.caixa_id = c.id
+    JOIN (
+        SELECT h1.* FROM historico_inspecoes_mangueira h1
+        INNER JOIN (
+            SELECT mangueira_id, MAX(id) as max_id FROM historico_inspecoes_mangueira GROUP BY mangueira_id
+        ) h2 ON h1.id = h2.max_id
+    ) h ON m.id = h.mangueira_id
+    WHERE DATEDIFF(h.proximo_teste, CURDATE()) <= ?
+";
 $stmt = $conn->prepare($query_mangueiras);
 $stmt->bind_param("i", $dias_para_alerta);
 $stmt->execute();
