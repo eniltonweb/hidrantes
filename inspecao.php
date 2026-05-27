@@ -15,7 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die('Falha na validação do token CSRF');
     }
 
-    $id_ativo = htmlspecialchars($_POST['id_ativo']);
+    // Cast para INT garantindo proteção total contra injeção SQL no ID
+    $id_ativo = (int)$_POST['id_ativo'];
     $tipo_ativo = htmlspecialchars($_POST['tipo_ativo']);
     $codigo_ativo_log = htmlspecialchars($_POST['codigo_ativo_log']);
 
@@ -31,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $chave_storz_ok = (htmlspecialchars($_POST['chave_storz'] ?? '') == 'Ok') ? 1 : 0;
         $pintura_ok = (htmlspecialchars($_POST['pintura'] ?? '') == 'Ok') ? 1 : 0;
         $abrigo_ok = (htmlspecialchars($_POST['abrigo'] ?? '') == 'Ok') ? 1 : 0;
-        // Nota: A coluna conexoes foi descontinuada na nova tabela de hidrante.
         $comentarios = htmlspecialchars($_POST['comentarios_hidrante'] ?? '');
 
         // Inserir no Histórico Transacional (Auditoria Pura - Sem UPDATE)
@@ -67,16 +67,38 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 // Lógica para QR Code e preenchimento da lista de ativos
 $codigo_qr = isset($_GET['codigo']) ? htmlspecialchars($_GET['codigo']) : '';
 $todos_ativos = [];
-$result_hidrantes = $conn->query("SELECT id_hidrante as id, codigo, local FROM hidrantes ORDER BY codigo");
-if($result_hidrantes) {
-    while($row = $result_hidrantes->fetch_assoc()) {
+
+// 1. Busca as Caixas de Hidrante da nova tabela pai
+$result_hidrantes = $conn->query("SELECT id, codigo_caixa as codigo, local FROM caixas_hidrante ORDER BY codigo_caixa");
+if ($result_hidrantes) {
+    while ($row = $result_hidrantes->fetch_assoc()) {
         $todos_ativos[] = ['id' => $row['id'], 'codigo' => $row['codigo'], 'local' => $row['local'] ?? '', 'tipo' => 'hidrante'];
     }
 }
-$result_mangueiras = $conn->query("SELECT id_mangueira as id, codigo, local FROM mangueiras ORDER BY codigo");
-if($result_mangueiras){
-    while($row = $result_mangueiras->fetch_assoc()) {
-        $todos_ativos[] = ['id' => $row['id'], 'codigo' => $row['codigo'], 'local' => $row['local'] ?? '', 'tipo' => 'mangueira'];
+
+// 2. Busca as Mangueiras (Fazendo JOIN com a caixa para exibir o código e local herdados)
+$query_mangueiras = "
+    SELECT m.id, c.codigo_caixa, c.local 
+    FROM mangueiras_novo m 
+    JOIN caixas_hidrante c ON m.caixa_id = c.id 
+    ORDER BY c.codigo_caixa, m.id
+";
+$result_mangueiras = $conn->query($query_mangueiras);
+
+if ($result_mangueiras) {
+    $caixa_atual = '';
+    $contador_mangueira = 1;
+
+    while ($row = $result_mangueiras->fetch_assoc()) {
+        if ($caixa_atual != $row['codigo_caixa']) {
+            $caixa_atual = $row['codigo_caixa'];
+            $contador_mangueira = 1;
+        } else {
+            $contador_mangueira++;
+        }
+        
+        $codigo_exibicao = $row['codigo_caixa'] . " (M" . $contador_mangueira . ")";
+        $todos_ativos[] = ['id' => $row['id'], 'codigo' => $codigo_exibicao, 'local' => $row['local'] ?? '', 'tipo' => 'mangueira'];
     }
 }
 
@@ -128,7 +150,6 @@ if (empty($_SESSION['token'])) {
                                 </select>
                             </div>
                             
-                            <!-- SEÇÃO DE DETALHES DO HIDRANTE (NBR 13714 / NBR 7195 e CBMERJ COSCIP) -->
                             <div id="campos_hidrante" style="display: none;" class="border rounded p-4 mb-4 bg-light">
                                 <h4 class="mb-3 text-danger border-bottom pb-2"><i class="fas fa-fire-extinguisher mr-2"></i>Conformidade do Hidrante</h4>
                                 
@@ -180,7 +201,6 @@ if (empty($_SESSION['token'])) {
                                 </div>
                             </div>
 
-                            <!-- SEÇÃO DE DETALHES DA MANGUEIRA (NBR 12779) -->
                             <div id="campos_mangueira" style="display: none;" class="border rounded p-4 mb-4 bg-light">
                                 <h4 class="mb-3 text-danger border-bottom pb-2"><i class="fas fa-road mr-2"></i>Conformidade da Mangueira</h4>
                                 
