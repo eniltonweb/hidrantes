@@ -26,56 +26,35 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt_log->execute();
 
     if ($tipo_ativo == 'hidrante') {
-        // Processa a inspeção de um HIDRANTE (Checklist em Conformidade NBR 13714/7195 e CBMERJ COSCIP)
-        $esguincho = htmlspecialchars($_POST['esguincho']);
-        $chave_storz = htmlspecialchars($_POST['chave_storz']);
-        $pintura = htmlspecialchars($_POST['pintura']); // Representa Sinalização do Piso NBR 7195
-        $abrigo = htmlspecialchars($_POST['abrigo']);   // Representa Acesso e Desobstrução CBMERJ
-        $conexoes = htmlspecialchars($_POST['conexoes']); // Junta Storz e Anel de Vedação NBR 13714
-        $comentarios = htmlspecialchars($_POST['comentarios_hidrante']);
+        // Processa a inspeção de uma CAIXA HIDRANTE (Conformidade NBR 13714/7195 e CBMERJ)
+        $esguincho_ok = (htmlspecialchars($_POST['esguincho'] ?? '') == 'Ok') ? 1 : 0;
+        $chave_storz_ok = (htmlspecialchars($_POST['chave_storz'] ?? '') == 'Ok') ? 1 : 0;
+        $pintura_ok = (htmlspecialchars($_POST['pintura'] ?? '') == 'Ok') ? 1 : 0;
+        $abrigo_ok = (htmlspecialchars($_POST['abrigo'] ?? '') == 'Ok') ? 1 : 0;
+        // Nota: A coluna conexoes foi descontinuada na nova tabela de hidrante.
+        $comentarios = htmlspecialchars($_POST['comentarios_hidrante'] ?? '');
 
-        // 1. Inserir no Histórico (Auditoria)
-        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_hidrante (id_hidrante, vistoriador, esguincho, chave_storz, pintura, abrigo, conexoes, comentarios) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        $stmt_hist->bind_param("isssssss", $id_ativo, $vistoriador, $esguincho, $chave_storz, $pintura, $abrigo, $conexoes, $comentarios);
+        // Inserir no Histórico Transacional (Auditoria Pura - Sem UPDATE)
+        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_hidrante (caixa_id, usuario, esguincho_ok, chave_storz_ok, pintura_ok, abrigo_ok, comentarios) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt_hist->bind_param("isiiiis", $id_ativo, $vistoriador, $esguincho_ok, $chave_storz_ok, $pintura_ok, $abrigo_ok, $comentarios);
         $stmt_hist->execute();
         $stmt_hist->close();
-
-        // 2. Atualizar o "Estado Atual" na tabela principal
-        $stmt = $conn->prepare("UPDATE hidrantes SET esguincho = ?, chave_storz = ?, pintura = ?, abrigo = ?, conexoes = ?, vistoriador = ?, comentarios = ?, data_manutencao = NOW() WHERE id_hidrante = ?");
-        $stmt->bind_param("sssssssi", $esguincho, $chave_storz, $pintura, $abrigo, $conexoes, $vistoriador, $comentarios, $id_ativo);
     
     } elseif ($tipo_ativo == 'mangueira') {
-        // Processa a inspeção de uma MANGUEIRA (Checklist em Conformidade NBR 12779)
-        $aduchada = htmlspecialchars($_POST['aduchada']); // Enrolamento Aduchado e Secagem NBR 12779
-        $conexoes = htmlspecialchars($_POST['conexoes']); // Garras Storz e Vedação NBR 12779
-        $teste_hidrostatico_proximo = htmlspecialchars($_POST['teste_hidrostatico_proximo']);
+        // Processa a inspeção de uma MANGUEIRA (NBR 12779)
+        $aduchada_ok = (htmlspecialchars($_POST['aduchada'] ?? '') == 'Ok') ? 1 : 0;
+        $conexoes_ok = (htmlspecialchars($_POST['conexoes'] ?? '') == 'Ok') ? 1 : 0;
+        $proximo_teste = htmlspecialchars($_POST['teste_hidrostatico_proximo'] ?? '');
         
-        $conservacao = htmlspecialchars($_POST['conservacao_carcaca']); // Estado da carcaça têxtil NBR 12779
-        $comentarios_raw = htmlspecialchars($_POST['comentarios_mangueira']);
+        $conservacao = htmlspecialchars($_POST['conservacao_carcaca'] ?? ''); 
+        $comentarios_raw = htmlspecialchars($_POST['comentarios_mangueira'] ?? '');
         $comentarios = "Carcaça Têxtil: " . $conservacao . ". " . $comentarios_raw;
         
-        $expira_em_dias = 0;
-        if(!empty($teste_hidrostatico_proximo)){
-            $hoje = new DateTime();
-            $proximo_teste = new DateTime($teste_hidrostatico_proximo);
-            $diferenca = $hoje->diff($proximo_teste);
-            $expira_em_dias = $diferenca->invert ? 0 : $diferenca->days;
-        }
-
-        // 1. Inserir no Histórico (Auditoria)
-        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_mangueira (id_mangueira, vistoriador, aduchada, conexoes, teste_hidrostatico_proximo, expira_em_dias, comentarios) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt_hist->bind_param("issssis", $id_ativo, $vistoriador, $aduchada, $conexoes, $teste_hidrostatico_proximo, $expira_em_dias, $comentarios);
+        // Inserir no Histórico Transacional (Auditoria Pura - Sem UPDATE)
+        $stmt_hist = $conn->prepare("INSERT INTO historico_inspecoes_mangueira (mangueira_id, usuario, aduchada_ok, conexoes_ok, proximo_teste, comentarios) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt_hist->bind_param("isiiss", $id_ativo, $vistoriador, $aduchada_ok, $conexoes_ok, $proximo_teste, $comentarios);
         $stmt_hist->execute();
         $stmt_hist->close();
-
-        // 2. Atualizar o "Estado Atual" na tabela principal
-        $stmt = $conn->prepare("UPDATE mangueiras SET aduchada = ?, conexoes = ?, teste_hidrostatico_proximo = ?, expira_em_dias = ?, comentarios = ?, vistoriador = ?, data_manutencao = NOW() WHERE id_mangueira = ?");
-        $stmt->bind_param("sssissi", $aduchada, $conexoes, $teste_hidrostatico_proximo, $expira_em_dias, $comentarios, $vistoriador, $id_ativo);
-    }
-    
-    if (isset($stmt)) {
-        $stmt->execute();
-        $stmt->close();
     }
     
     $stmt_log->close();
